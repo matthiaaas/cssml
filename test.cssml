@@ -1,0 +1,25 @@
+html {
+  head {
+    title (My Website) {}
+  }
+
+  body {
+    h1 (Welcome to my website) {
+      font-size: 40px;
+      color: red;
+    }
+
+    p.lead.heading_paragraph (This is a paragraph) {
+      font-size: 20px;
+    }
+
+    div#logo () {
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .lead {
+      color: blue;
+    }
+  }
+}
