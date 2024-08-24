@@ -107,3 +107,11 @@ impl<'a> Iterator for Lexer<'a> {
         self.next_token()
     }
 }
+
+impl<'a> Clone for Lexer<'a> {
+    fn clone(&self) -> Self {
+        Lexer {
+            input: self.input.clone(),
+        }
+    }
+}
