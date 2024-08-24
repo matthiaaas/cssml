@@ -15,6 +15,26 @@ pub enum Token {
     Text(String),
 }
 
+impl Token {
+    fn from_char(c: char) -> Option<Self> {
+        match c {
+            '{' => Some(Self::LeftBrace),
+            '}' => Some(Self::RightBrace),
+            '(' => Some(Self::LeftParen),
+            ')' => Some(Self::RightParen),
+            ':' => Some(Self::Colon),
+            ';' => Some(Self::Semicolon),
+            '.' => Some(Self::Dot),
+            '#' => Some(Self::Hash),
+            _ => None,
+        }
+    }
+
+    fn uniquely_determined_by(c: char) -> bool {
+        Self::from_char(c).is_some()
+    }
+}
+
 pub struct Lexer<'a> {
     input: Peekable<Chars<'a>>,
 }
@@ -30,16 +50,13 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
 
         match self.input.next() {
-            Some('{') => Some(Token::LeftBrace),
-            Some('}') => Some(Token::RightBrace),
-            Some('(') => Some(Token::LeftParen),
-            Some(')') => Some(Token::RightParen),
-            Some(':') => Some(Token::Colon),
-            Some(';') => Some(Token::Semicolon),
-            Some('.') => Some(Token::Dot),
-            Some('#') => Some(Token::Hash),
-            Some(c) if c.is_alphabetic() => Some(self.read_identifier(c)),
-            Some(c) => Some(self.read_text(c)),
+            Some(c) => Token::from_char(c).or_else(|| {
+                if c.is_alphabetic() {
+                    Some(self.read_identifier(c))
+                } else {
+                    Some(self.read_text(c))
+                }
+            }),
             None => None,
         }
     }
@@ -62,7 +79,7 @@ impl<'a> Lexer<'a> {
         let mut text = String::from(first_char);
 
         while let Some(&c) = self.input.peek() {
-            if c != '{' && c != '}' && c != '(' && c != ')' {
+            if !c.is_whitespace() && !Token::uniquely_determined_by(c) {
                 text.push(self.input.next().unwrap());
             } else {
                 break;

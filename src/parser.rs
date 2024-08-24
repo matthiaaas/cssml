@@ -111,13 +111,13 @@ impl<'a> Parser<'a> {
             match token {
                 Token::RightBrace => {
                     self.lexer.next();
-                    return nodes;
+                    break;
                 }
                 _ => nodes.push(self.parse_node()),
             }
         }
 
-        panic!("Unexpected end of input");
+        nodes
     }
 
     fn parse_ruleset(&mut self, first_declaration_propery: Option<String>) -> ASTNode {
@@ -158,6 +158,13 @@ impl<'a> Parser<'a> {
             _ => panic!("Expected value"),
         };
 
+        match self.lexer.peek() {
+            Some(Token::Semicolon) => {
+                self.lexer.next();
+            }
+            _ => panic!("Expected semicolon"),
+        }
+
         (first_declaration_propery, value)
     }
 
@@ -177,6 +184,13 @@ impl<'a> Parser<'a> {
             Token::Text(value) => value,
             _ => panic!("Expected value"),
         };
+
+        match self.lexer.peek() {
+            Some(Token::Semicolon) => {
+                self.lexer.next();
+            }
+            _ => panic!("Expected semicolon"),
+        }
 
         (property, value)
     }

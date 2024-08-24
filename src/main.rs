@@ -9,11 +9,10 @@ fn main() {
                 meta {}
             }
             body {
-                h1 {
+                h1.test {
                     font-size: 16px;
+                    font-size: red;
                 }
-
-                .test {}
             }
         }
     "#;
