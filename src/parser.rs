@@ -18,6 +18,13 @@ pub enum ASTNode {
 
 type RulesetDeclaration = (String, String);
 
+#[derive(Debug)]
+pub enum ParsingError {
+    UnexpectedToken(String),
+    UnexpectedEndOfInput,
+    MissingIdentifier(String),
+}
+
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
@@ -29,29 +36,34 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> ASTNode {
+    pub fn parse(&mut self) -> Result<ASTNode, ParsingError> {
         let mut nodes = Vec::new();
 
         while self.lexer.peek().is_some() {
-            let node = self.parse_node();
+            let node = self.parse_node()?;
             nodes.push(node);
         }
 
-        ASTNode::Document(nodes)
+        Ok(ASTNode::Document(nodes))
     }
 
-    fn parse_node(&mut self) -> ASTNode {
-        match self.lexer.peek().unwrap() {
-            Token::Identifier(_) => self.parse_selector_or_ruleset(),
-            token if matches!(token, Token::Dot | Token::Hash) => self.parse_selector(None),
-            _ => panic!("Unexpected token"),
+    fn parse_node(&mut self) -> Result<ASTNode, ParsingError> {
+        match self.lexer.peek() {
+            Some(Token::Identifier(_)) => self.parse_selector_or_ruleset(),
+            Some(token) if matches!(token, Token::Dot | Token::Hash) => self.parse_selector(None),
+            Some(token) => Err(ParsingError::UnexpectedToken(format!("{:?}", token))),
+            None => Err(ParsingError::UnexpectedEndOfInput),
         }
     }
 
-    fn parse_selector_or_ruleset(&mut self) -> ASTNode {
-        let identifier = match self.lexer.next().unwrap() {
-            Token::Identifier(identifier) => Some(identifier),
-            _ => panic!("Unexpected token"),
+    fn parse_selector_or_ruleset(&mut self) -> Result<ASTNode, ParsingError> {
+        let identifier = match self.lexer.next() {
+            Some(Token::Identifier(identifier)) => Some(identifier),
+            _ => {
+                return Err(ParsingError::UnexpectedToken(
+                    "Expected identifier".to_string(),
+                ))
+            }
         };
 
         match self.lexer.peek() {
@@ -60,51 +72,52 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_selector(&mut self, mut tag: Option<String>) -> ASTNode {
+    fn parse_selector(&mut self, mut tag: Option<String>) -> Result<ASTNode, ParsingError> {
         let mut id = None;
         let mut classes = Vec::new();
 
-        while let Some(token) = self.lexer.next() {
-            match token {
-                Token::Identifier(i) => {
+        loop {
+            match self.lexer.next() {
+                Some(Token::Identifier(identifier)) => {
                     if tag.is_some() {
                         panic!("Unexpected identifier");
                     }
 
-                    tag = Some(i);
+                    tag = Some(identifier);
                 }
-                Token::Dot => {
-                    if let Token::Identifier(class) = self.lexer.next().unwrap() {
+                Some(Token::Dot) => {
+                    if let Some(Token::Identifier(class)) = self.lexer.next() {
                         classes.push(class);
                     } else {
-                        panic!("Expected identifier after .");
+                        return Err(ParsingError::MissingIdentifier(
+                            "Expected class name".to_string(),
+                        ));
                     }
                 }
-                Token::Hash => {
-                    if let Token::Identifier(i) = self.lexer.next().unwrap() {
+                Some(Token::Hash) => {
+                    if let Some(Token::Identifier(i)) = self.lexer.next() {
                         id = Some(i);
                     } else {
-                        panic!("Expected identifier after #");
+                        return Err(ParsingError::MissingIdentifier("Expected id".to_string()));
                     }
                 }
-                Token::LeftBrace => {
-                    let children: Vec<ASTNode> = self.parse_selector_body();
+                Some(Token::LeftBrace) => {
+                    let children = self.parse_selector_body()?;
 
-                    return ASTNode::Selector {
+                    return Ok(ASTNode::Selector {
                         tag,
                         id,
                         classes,
                         children,
-                    };
+                    });
                 }
-                _ => panic!("Unexpected token"),
+                Some(token) => return Err(ParsingError::UnexpectedToken(format!("{:?}", token))),
+                None => return Err(ParsingError::UnexpectedEndOfInput),
             }
         }
-
-        panic!("Unexpected end of input");
     }
 
-    fn parse_selector_body(&mut self) -> Vec<ASTNode> {
+    fn parse_selector_body(&mut self) -> Result<Vec<ASTNode>, ParsingError> {
         let mut nodes = Vec::new();
 
         while let Some(token) = self.lexer.peek() {
@@ -113,71 +126,62 @@ impl<'a> Parser<'a> {
                     self.lexer.next();
                     break;
                 }
-                _ => nodes.push(self.parse_node()),
+                _ => nodes.push(self.parse_node()?),
             }
         }
 
-        nodes
+        Ok(nodes)
     }
 
-    fn parse_ruleset(&mut self, first_declaration_propery: Option<String>) -> ASTNode {
+    fn parse_ruleset(
+        &mut self,
+        first_declaration_propery: Option<String>,
+    ) -> Result<ASTNode, ParsingError> {
         let mut declarations = Vec::new();
 
         if let Some(first_declaration_propery) = first_declaration_propery {
-            declarations.push(self.parse_ruleset_first_declaration(first_declaration_propery));
+            declarations.push(self.parse_ruleset_first_declaration(first_declaration_propery)?);
         }
 
         while let Some(token) = self.lexer.peek() {
             match token {
                 Token::RightBrace => {
                     self.lexer.next();
-                    return ASTNode::StyleRuleset { declarations };
+                    return Ok(ASTNode::StyleRuleset { declarations });
                 }
                 _ => {
-                    let (property, value) = self.parse_ruleset_declaration();
+                    let (property, value) = self.parse_ruleset_declaration()?;
                     declarations.push((property, value));
                 }
             }
         }
 
-        ASTNode::StyleRuleset { declarations }
+        Ok(ASTNode::StyleRuleset { declarations })
     }
 
     fn parse_ruleset_first_declaration(
         &mut self,
         first_declaration_propery: String,
-    ) -> RulesetDeclaration {
-        match self.lexer.next().unwrap() {
-            Token::Colon => (),
-            _ => panic!("Expected colon"),
-        }
+    ) -> Result<RulesetDeclaration, ParsingError> {
+        self.expect_token(Token::Colon)?;
 
-        let value = match self.lexer.next().unwrap() {
-            Token::Identifier(value) => value,
-            Token::Text(value) => value,
+        let value = match self.lexer.next() {
+            Some(Token::Identifier(value) | Token::Text(value)) => value,
             _ => panic!("Expected value"),
         };
 
-        match self.lexer.peek() {
-            Some(Token::Semicolon) => {
-                self.lexer.next();
-            }
-            _ => panic!("Expected semicolon"),
-        }
+        self.expect_token(Token::Semicolon)?;
 
-        (first_declaration_propery, value)
+        Ok((first_declaration_propery, value))
     }
 
-    fn parse_ruleset_declaration(&mut self) -> RulesetDeclaration {
+    fn parse_ruleset_declaration(&mut self) -> Result<RulesetDeclaration, ParsingError> {
         let property = match self.lexer.next().unwrap() {
             Token::Identifier(property) => property,
             _ => panic!("Expected property identifier"),
         };
 
-        match self.lexer.next().unwrap() {
-            Token::Colon => (),
-            _ => panic!("Expected colon"),
-        }
+        self.expect_token(Token::Colon)?;
 
         let value = match self.lexer.next().unwrap() {
             Token::Identifier(value) => value,
@@ -185,13 +189,19 @@ impl<'a> Parser<'a> {
             _ => panic!("Expected value"),
         };
 
-        match self.lexer.peek() {
-            Some(Token::Semicolon) => {
-                self.lexer.next();
-            }
-            _ => panic!("Expected semicolon"),
-        }
+        self.expect_token(Token::Semicolon)?;
 
-        (property, value)
+        Ok((property, value))
+    }
+
+    fn expect_token(&mut self, expected: Token) -> Result<(), ParsingError> {
+        match self.lexer.next() {
+            Some(token) if token == expected => Ok(()),
+            Some(token) => Err(ParsingError::UnexpectedToken(format!(
+                "Expected {:?}, got {:?}",
+                expected, token
+            ))),
+            None => Err(ParsingError::UnexpectedEndOfInput),
+        }
     }
 }
