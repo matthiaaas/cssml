@@ -1,3 +1,4 @@
+mod generator;
 mod lexer;
 mod parser;
 
@@ -32,10 +33,13 @@ fn main() {
     //
 
     let input = r#"
-        html {
-            head {
-                title {}
-                meta {}
+        html.example_class () {
+            head () {
+                title (My Site) {}
+            }
+            body () {
+                h1 (Example Headline) {
+                }
             }
         }
     "#;
@@ -46,9 +50,12 @@ fn main() {
     }
 
     let mut parser = parser::Parser::new(input);
-
     let ast = parser.parse();
     println!("{:?}", ast);
+
+    let generator = generator::Generator::new();
+    let html = generator.generate_html(ast);
+    println!("{}", html);
 
     // let lexer = Lexer::new(input).peekable();
 

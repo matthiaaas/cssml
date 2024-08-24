@@ -46,6 +46,7 @@ impl<'a> Lexer<'a> {
 
     fn read_identifier(&mut self, first_char: char) -> Token {
         let mut identifier = String::from(first_char);
+
         while let Some(&c) = self.input.peek() {
             if c.is_alphanumeric() || c == '-' || c == '_' {
                 identifier.push(self.input.next().unwrap());
@@ -53,11 +54,13 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
+
         Token::Identifier(identifier)
     }
 
     fn read_text(&mut self, first_char: char) -> Token {
         let mut text = String::from(first_char);
+
         while let Some(&c) = self.input.peek() {
             if c != '{' && c != '}' && c != '(' && c != ')' {
                 text.push(self.input.next().unwrap());
@@ -65,6 +68,7 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
+
         Token::Text(text.trim().to_string())
     }
 
