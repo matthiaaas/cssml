@@ -135,12 +135,12 @@ impl<'a> Parser<'a> {
 
     fn parse_ruleset(
         &mut self,
-        first_declaration_propery: Option<String>,
+        first_declaration_property: Option<String>,
     ) -> Result<ASTNode, ParsingError> {
         let mut declarations = Vec::new();
 
-        if let Some(first_declaration_propery) = first_declaration_propery {
-            declarations.push(self.parse_ruleset_first_declaration(first_declaration_propery)?);
+        if let Some(first_declaration_property) = first_declaration_property {
+            declarations.push(self.parse_ruleset_first_declaration(first_declaration_property)?);
         }
 
         while let Some(token) = self.lexer.peek() {
@@ -161,18 +161,15 @@ impl<'a> Parser<'a> {
 
     fn parse_ruleset_first_declaration(
         &mut self,
-        first_declaration_propery: String,
+        first_declaration_property: String,
     ) -> Result<RulesetDeclaration, ParsingError> {
         self.expect_token(Token::Colon)?;
 
-        let value = match self.lexer.next() {
-            Some(Token::Identifier(value) | Token::Text(value)) => value,
-            _ => panic!("Expected value"),
-        };
+        let value = self.parse_ruleset_declaration_value()?;
 
         self.expect_token(Token::Semicolon)?;
 
-        Ok((first_declaration_propery, value))
+        Ok((first_declaration_property, value))
     }
 
     fn parse_ruleset_declaration(&mut self) -> Result<RulesetDeclaration, ParsingError> {
@@ -183,15 +180,18 @@ impl<'a> Parser<'a> {
 
         self.expect_token(Token::Colon)?;
 
-        let value = match self.lexer.next().unwrap() {
-            Token::Identifier(value) => value,
-            Token::Text(value) => value,
-            _ => panic!("Expected value"),
-        };
+        let value = self.parse_ruleset_declaration_value()?;
 
         self.expect_token(Token::Semicolon)?;
 
         Ok((property, value))
+    }
+
+    fn parse_ruleset_declaration_value(&mut self) -> Result<String, ParsingError> {
+        match self.lexer.next() {
+            Some(Token::Identifier(value) | Token::Text(value)) => Ok(value),
+            _ => Err(ParsingError::UnexpectedToken("Expected value".to_string())),
+        }
     }
 
     fn expect_token(&mut self, expected: Token) -> Result<(), ParsingError> {
