@@ -120,13 +120,10 @@ impl<'a> Parser<'a> {
     fn parse_selector_body(&mut self) -> Result<Vec<ASTNode>, ParsingError> {
         let mut nodes = Vec::new();
 
-        println!("{:?}", self.lexer.peek());
-
         while let Some(token) = self.lexer.peek() {
             match token {
                 Token::RightBrace => {
                     self.lexer.next();
-                    println!("aborted {:?}", self.lexer.peek());
                     break;
                 }
                 _ => nodes.push(self.parse_node()?),
@@ -140,7 +137,6 @@ impl<'a> Parser<'a> {
         let mut declarations = Vec::new();
 
         loop {
-            println!("parse_ruleset {:?}", self.lexer.peek());
             match self.lexer.peek() {
                 Some(Token::RightBrace) => {
                     return Ok(ASTNode::StyleRuleset { declarations });
