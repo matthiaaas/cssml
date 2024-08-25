@@ -1,20 +1,9 @@
 use std::iter::Peekable;
 
-use crate::lexer::{Lexer, Token};
-
-#[derive(Debug)]
-pub enum ASTNode {
-    Document(Vec<ASTNode>),
-    Selector {
-        tag: Option<String>,
-        id: Option<String>,
-        classes: Vec<String>,
-        children: Vec<ASTNode>,
-    },
-    StyleRuleset {
-        declarations: Vec<(String, String)>,
-    },
-}
+use crate::{
+    ast::ASTNode,
+    lexer::{Lexer, Token},
+};
 
 type RulesetDeclaration = (String, String);
 
@@ -73,6 +62,7 @@ impl<'a> Parser<'a> {
         let mut tag = None;
         let mut id = None;
         let mut classes = Vec::new();
+        let mut element = None;
 
         loop {
             match self.lexer.next() {
@@ -101,6 +91,9 @@ impl<'a> Parser<'a> {
                         return Err(ParsingError::MissingIdentifier("Expected id".to_string()));
                     }
                 }
+                Some(Token::LeftParen) => {
+                    element = Some(self.parse_element_constructor()?);
+                }
                 Some(Token::LeftBrace) => {
                     let children = self.parse_selector_body()?;
 
@@ -108,10 +101,34 @@ impl<'a> Parser<'a> {
                         tag,
                         id,
                         classes,
+                        element,
                         children,
                     });
                 }
                 Some(token) => return Err(ParsingError::UnexpectedToken(format!("{:?}", token))),
+                None => return Err(ParsingError::UnexpectedEndOfInput),
+            }
+        }
+    }
+
+    fn parse_element_constructor(&mut self) -> Result<String, ParsingError> {
+        let mut element = String::new();
+
+        loop {
+            match self.lexer.next() {
+                Some(Token::Identifier(identifier) | Token::Text(identifier)) => {
+                    if !element.is_empty() {
+                        element.push_str(" ");
+                    }
+
+                    element.push_str(&identifier);
+                }
+                Some(Token::RightParen) => {
+                    return Ok(element);
+                }
+                Some(token) => {
+                    return Err(ParsingError::UnexpectedToken(format!("{:?}", token)));
+                }
                 None => return Err(ParsingError::UnexpectedEndOfInput),
             }
         }
